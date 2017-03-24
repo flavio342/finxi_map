@@ -1,0 +1,49 @@
+.ios, .md {
+
+    home-page {
+
+      ion-title{
+          color: green !important;
+      }
+
+      .scroll-content {
+        height: 100% !important;
+      }
+
+      #map {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      #current-loc-button{
+        position: absolute;
+        bottom: 70px;
+        right: 10px;
+      }
+
+      #pin-icon{
+        position:absolute;
+        left: 0;
+        right: 0;
+        margin:0 auto;
+        bottom: 50vh;
+        width: $pin-width;
+        height: $pin-heigth;
+      }
+
+      #loc-card{
+        position:absolute;
+        left: 0;
+        right: 0;
+        margin:0 auto;
+        top:0;
+        width: $loc-width;
+      }
+
+      .toolbar-background{
+        background-color: #FDD835 !important;
+      }
+
+    }
+
+}

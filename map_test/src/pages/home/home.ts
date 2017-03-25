@@ -1,22 +1,16 @@
-import { Component, ViewChild, ElementRef } from '@angular/core';
+import { Component} from '@angular/core';
 import { NavController } from 'ionic-angular';
-
 import { MenuController } from 'ionic-angular';
-
-import { Geolocation } from 'ionic-native';
-
 import {ConnectivityService} from '../../providers/connectivity-service'
-
 import { LoadingController } from 'ionic-angular';
-
-declare var google;
-
-import{BatteryMachine} from '../battery/battery-machine'
-
 import { AlertController } from 'ionic-angular';
-
-import {SQLite} from "ionic-native";
 import {Platform} from 'ionic-angular';
+import {Keyboard} from 'ionic-native'
+
+import { ViewChild, ElementRef } from '@angular/core';
+
+import{GoogleMapsService} from '../services/googlemaps.service'
+import{DataBaseService} from '../services/database.service'
 
 @Component({
   selector: 'home-page',
@@ -24,104 +18,145 @@ import {Platform} from 'ionic-angular';
 })
 export class HomePage {
 
-  batteryMachines: BatteryMachine[] = [];
-  maxNBatteries = 15;
-
-  markers = [];
+  batteryMachines = [];
+  loader = this.loadingCtrl.create({
+    content: "Connecting..."
+  });
+  marker = this.loadingCtrl.create({
+    content: "Creating Machine..."
+  });
+  address = this.loadingCtrl.create({
+    content: "Getting Current Address..."
+  });
+  nearest = this.loadingCtrl.create({
+    content: "Searching for nearest machine..."
+  });;
+  route = this.loadingCtrl.create({
+    content: "Creating Route..."
+  });;
 
   @ViewChild('map') mapElement: ElementRef;
 
-  map: any;
-  mapInitialised: boolean = false;
-  apiKey: any = "AIzaSyCpG4B_z3mwmttoVZyQv7mgOm0Vm7h0pgo";
-
-  latLng = {lat: -22.902938, lng: -43.176605};
-
-  public database:SQLite;
-
-  geocoder;
-
-  public currentLocation;
-
-  loader: any = this.loadingCtrl.create({
-    content: "Connecting..."
-  });
-
-  constructor(public menuCtrl: MenuController, public navCtrl: NavController, public connectivityService: ConnectivityService, public loadingCtrl: LoadingController, private alertCtrl: AlertController,public platform:Platform) {
+  constructor(private databaseService:DataBaseService, private googlemapsService: GoogleMapsService, public menuCtrl: MenuController, public navCtrl: NavController, public connectivityService: ConnectivityService, public loadingCtrl: LoadingController, private alertCtrl: AlertController,public platform:Platform) {
     this.platform.ready().then(() => {
-      this.database = new SQLite();
-      this.database.openDatabase({name: "data.db", location: "default"}).then(() => {
+      databaseService.OpenDatabase().then(() => {
         this.refreshMachines();
-      }, (error) => {
-        console.log("ERROR: ", error);
+        this.createAllMarkers();
       });
-
+      this.menuCtrl.swipeEnable(false, 'rightMenu');
     });
-
   }
 
-  goToMachine(machine){
-    this.menuCtrl.close();
-    var latLng = new google.maps.LatLng(machine.lat, machine.lng);
-    this.map.setCenter(latLng);
-    this.map.setZoom(17);
-    this.setCurrentLocation();
+  ngAfterViewInit(){
+    this.googlemapsService.mapElement = this.mapElement;
+    this.googlemapsService.rightPanel = document.getElementById('right-panel');
+    this.googlemapsService.searchBar = document.getElementById('pac-input');
+    this.googlemapsService.input = document.getElementById('pac-input').getElementsByClassName('searchbar-input-container')[0].getElementsByTagName('input')[0];
+
+    this.loadGoogleMaps();
+  }
+
+  goToCurrentLocation(){
+    this.address = this.loadingCtrl.create({
+      content: "Getting Current Address..."
+    });
+    this.address.present();
+    this.googlemapsService.GetCurrentLatLng().then((currentLatLng) =>{
+      this.googlemapsService.GoTo(currentLatLng);
+      this.googlemapsService.SetCurrentLocationMarker(currentLatLng);
+      this.address.dismiss();
+    });
+  }
+
+  setCurrentLocation(){
+    var center = this.googlemapsService.GetCenter();
+    var centerLatLng = this.googlemapsService.ConvertToLatLngObj(center.lat(),center.lng());
+    this.googlemapsService.SetCurrentAddress(centerLatLng).then(()=>{
+      this.googlemapsService.SetCurrentAddress(centerLatLng);
+    });
+  }
+
+  ToogleRoute(){
+    if(this.googlemapsService.isShowingRoute){
+      this.googlemapsService.RemoveRoute();
+    }else{
+      this.route = this.loadingCtrl.create({
+        content: "Creating Route..."
+      });;
+      this.route.present();
+      var center = this.googlemapsService.GetCenter();
+      this.googlemapsService.RouteTo(this.googlemapsService.ConvertToLatLngObj(center.lat(), center.lng())).then(()=>{
+        this.route.dismiss();
+      });
+    }
   }
 
   createMachine(lat,lng,nbatteries,address){
-    this.database.executeSql("INSERT INTO machines (lat,lng,nbatteries,address) VALUES ('" + lat + "','" + lng + "','" + nbatteries + "','" + address + "')", []).then((data) => {
-      console.log("INSERTED: " + JSON.stringify(data));
-    }, (error) => {
-      console.log("ERROR: " + JSON.stringify(error.err));
+    this.databaseService.CreateMachine(lat,lng,nbatteries,address).then((id)=>{
+      this.googlemapsService.AddMarker(id,lat,lng,nbatteries,address);
+      this.refreshMachines();
+      this.marker.dismiss();
     });
-    this.refreshMachines();
   }
 
   deleteMachine(machine){
-    this.database.executeSql("DELETE FROM machines WHERE id IN (" + machine.id + ")", []).then((data) => {
-      console.log("DELETED: " + JSON.stringify(data));
-    }, (error) => {
-      console.log("ERROR: " + JSON.stringify(error.err));
-    });
+    this.googlemapsService.DeleteMarker(machine.id);
+    this.databaseService.DeleteMachine(machine);
     this.refreshMachines();
   }
 
   refreshMachines() {
-    this.database.executeSql("SELECT * FROM machines", []).then((data) => {
-      for (var i = 0; i < this.markers.length; i++) {
-        this.markers[i].setMap(null);
-      }
-      this.markers = [];
+    this.databaseService.database.executeSql("SELECT * FROM machines", []).then((data) => {
       this.batteryMachines = [];
       if(data.rows.length > 0) {
         for(var i = 0; i < data.rows.length; i++) {
           this.batteryMachines.push({id: data.rows.item(i).id, lat: data.rows.item(i).lat, lng: data.rows.item(i).lng, nBatteries: data.rows.item(i).nbatteries, address: data.rows.item(i).address});
-          this.addMarker(this.batteryMachines[i].id,this.batteryMachines[i].lat,this.batteryMachines[i].lng,this.batteryMachines[i].nBatteries);
         }
         this.batteryMachines.reverse();
       }
-    }, (error) => {
-      console.log("ERROR: " + JSON.stringify(error));
     });
-    console.log("refreshed");
   }
 
-  updateMachine(machine){
-
-    this.database.executeSql("UPDATE machines SET nbatteries = '" + machine.nBatteries + "' WHERE id =" + machine.id, []).then((data) => {
-      console.log("UPDATED: " + JSON.stringify(data));
-    }, (error) => {
-      console.log("ERROR: " + JSON.stringify(error.err));
+  routeToMachine(machine){
+    this.route = this.loadingCtrl.create({
+      content: "Creating Route..."
+    });;
+    this.route.present();
+    this.googlemapsService.RouteTo(this.googlemapsService.ConvertToLatLngObj(machine.lat,machine.lng)).then(()=>{
+      this.route.dismiss();
+      this.menuCtrl.close();
     });
-    this.refreshMachines();
   }
 
-  ngAfterViewInit(){
-    this.loadGoogleMaps();
+  routeToNearestMachine() {
+    this.nearest = this.loadingCtrl.create({
+      content: "Searching for nearest machine..."
+    });
+    this.nearest.present();
+    this.googlemapsService.GetCurrentLatLng().then((currentLatLng)=>{
+      var closest = -1;
+      var distances = [];
+      if(this.batteryMachines.length <= 0){
+        this.nearest.dismiss();
+        return;
+      }
+      for(let i=0;i<this.batteryMachines.length; i++ ) {
+        var mLatLng = this.googlemapsService.ConvertToLatLngObj(this.batteryMachines[i].lat, this.batteryMachines[i].lng);
+        distances[i] = this.googlemapsService.GetDistanceBetween(currentLatLng,mLatLng);
+        if ( closest == -1 || distances[i] < distances[closest] ) {
+          closest = i;
+        }
+      }
+      this.googlemapsService.RouteTo(this.batteryMachines[closest]).then(()=>{
+        this.nearest.dismiss();
+      });
+    });
   }
 
-  openMenu() {
-    this.menuCtrl.open();
+  createAllMarkers(){
+    this.databaseService.ReadMachines().then((data)=>{
+      this.googlemapsService.CreateAllMarkers(data);
+    });
   }
 
   openAddMarkerModal() {
@@ -145,17 +180,17 @@ export class HomePage {
           text: 'Create',
           handler: data => {
             console.log('Create clicked');
-            this.geocoder.geocode({'location': this.map.getCenter()}, (results, status) => {
-              if (status === google.maps.GeocoderStatus.OK) {
-                if (results[1]) {
-                  this.createMachine(this.map.getCenter().lat(), this.map.getCenter().lng(),data.nBatteries, results[1].formatted_address);
-                } else {
-                  console.log('No results found');
-                }
-              } else {
-                console.log('Geocoder failed due to: ' + status);
-              }
+            Keyboard.close();
+            this.marker = this.loadingCtrl.create({
+              content: "Creating Machine..."
             });
+            this.marker.present();
+            setTimeout(()=>{
+              this.googlemapsService.GetCenterLocation().then((results)=>{
+                var center = this.googlemapsService.GetCenter();
+                this.createMachine(center.lat(), center.lng(), data.nBatteries, results[0].formatted_address);
+              });
+            },1000);
           }
         }
       ]
@@ -163,68 +198,11 @@ export class HomePage {
     alert.present();
   }
 
-  addMarker(id,lat,lgn,nBatteries){
-
-    let latLng = new google.maps.LatLng(lat, lgn);
-
-    let iconBase = "assets/images/"
-    var icons = {
-      few: {
-        icon: iconBase + 'lightning3.png'
-      },
-      averege: {
-        icon: iconBase + 'lightning2.png'
-      },
-      many: {
-        icon: iconBase + 'lightning.png'
-      }
-    };
-    let type;
-    if(nBatteries <= (this.maxNBatteries/3)){
-      type = 'few';
-    }else if(nBatteries > (this.maxNBatteries/3) && nBatteries <= (this.maxNBatteries/3)*2){
-      type = 'averege';
-    }else{
-      type = 'many';
-    }
-
-    var icon = {
-        url: icons[type].icon, // url
-        scaledSize: new google.maps.Size(50, 50), // scaled size
-        origin: new google.maps.Point(0,0), // origin
-        anchor: new google.maps.Point(25, 50) // anchor
-    };
-
-    let marker = new google.maps.Marker({
-      map: this.map,
-      icon: icon,
-      animation: google.maps.Animation.DROP,
-      position: latLng
-    });
-
-    let content = "<h4>Battery (" + id + ")</h4><p>Number of Available Batteries: " + nBatteries + "</p>";
-    this.addInfoWindow(marker, content);
-
-    this.markers.push(marker);
-  }
-
-  addInfoWindow(marker, content){
-
-    let infoWindow = new google.maps.InfoWindow({
-      content: content
-    });
-
-    google.maps.event.addListener(marker, 'click', () => {
-      infoWindow.open(this.map, marker);
-    });
-
-  }
-
   loadGoogleMaps(){
 
     this.addConnectivityListeners();
 
-    if(typeof google == "undefined" || typeof google.maps == "undefined"){
+    if(this.googlemapsService.HasNotGoogleJSLoaded()){
 
       console.log("Google maps JavaScript needs to be loaded.");
       this.disableMap();
@@ -233,18 +211,19 @@ export class HomePage {
         console.log("online, loading map");
 
         //Load the SDK
-        window['mapInit'] = () => {
-          this.initMap();
+        window['InitMap'] = () => {
+          this.googlemapsService.InitMap();
           this.enableMap();
+          this.goToCurrentLocation();
         }
 
         let script = document.createElement("script");
         script.id = "googleMaps";
 
-        if(this.apiKey){
-          script.src = 'http://maps.google.com/maps/api/js?key=' + this.apiKey + '&libraries=places&callback=mapInit';
+        if(this.googlemapsService.apiKey){
+          script.src = 'http://maps.google.com/maps/api/js?key=' + this.googlemapsService.apiKey + '&libraries=places&callback=InitMap';
         } else {
-          script.src = 'http://maps.google.com/maps/api/js?libraries=places&callback=mapInit';
+          script.src = 'http://maps.google.com/maps/api/js?libraries=places&callback=InitMap';
         }
 
         document.body.appendChild(script);
@@ -255,8 +234,10 @@ export class HomePage {
 
       if(this.connectivityService.isOnline()){
         console.log("showing map");
-        this.initMap();
+        this.googlemapsService.InitMap();
         this.enableMap();
+        this.goToCurrentLocation();
+
       }
       else {
         console.log("disabling map");
@@ -265,79 +246,6 @@ export class HomePage {
 
     }
 
-  }
-
-  initMap(){
-
-    this.mapInitialised = true;
-
-    Geolocation.getCurrentPosition().then((position) => {
-      this.latLng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
-    });
-
-    let mapOptions = {
-      center: this.latLng,
-      zoom: 17,
-      disableDefaultUI: true,
-      disableDoubleClickZoom: true,
-      zoomControl: true,
-      mapTypeId: google.maps.MapTypeId.ROADMAP
-    }
-
-    this.map = new google.maps.Map(this.mapElement.nativeElement, mapOptions);
-    this.geocoder = new google.maps.Geocoder;
-
-    this.goToCurrentLocation();
-
-
-    var input = document.getElementById('pac-input').getElementsByClassName('searchbar-input-container')[0].getElementsByTagName('input')[0];
-
-    this.map.controls[google.maps.ControlPosition.TOP_CENTER].push(document.getElementById('pac-input'));
-
-    var autocomplete = new google.maps.places.Autocomplete(input);
-    autocomplete.bindTo('bounds', this.map);
-
-    autocomplete.addListener('place_changed', () => {
-      var place = autocomplete.getPlace();
-      if (!place.geometry) {
-        window.alert("Autocomplete's returned place contains no geometry");
-        return;
-      }
-
-      // If the place has a geometry, then present it on a map.
-      if (place.geometry.viewport) {
-        this.map.fitBounds(place.geometry.viewport);
-      } else {
-        this.map.setCenter(place.geometry.location);
-        this.map.setZoom(17);  // Why 17? Because it looks good.
-      }
-    });
-  }
-
-  goToCurrentLocation(){
-
-    Geolocation.getCurrentPosition().then((position) => {
-      var initialLocation = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
-      this.map.setCenter(initialLocation);
-      this.map.setZoom(17);
-      this.setCurrentLocation();
-    });
-
-  }
-
-  setCurrentLocation() {
-    this.geocoder.geocode({'location': this.map.getCenter()}, (results, status) => {
-      if (status === google.maps.GeocoderStatus.OK) {
-        if (results[1]) {
-          this.currentLocation = results[1].formatted_address;
-          console.log(this.currentLocation);
-        } else {
-          console.log('No results found');
-        }
-      } else {
-        console.log('Geocoder failed due to: ' + status);
-      }
-    });
   }
 
   disableMap(){
@@ -358,14 +266,15 @@ export class HomePage {
     let onOnline = () => {
 
       setTimeout(() => {
-        if(typeof google == "undefined" || typeof google.maps == "undefined"){
+        if(this.googlemapsService.HasNotGoogleJSLoaded()){
 
           this.loadGoogleMaps();
 
         } else {
 
-          if(!this.mapInitialised){
-            this.initMap();
+          if(!this.googlemapsService.isMapInitialised){
+            this.googlemapsService.InitMap();
+            this.goToCurrentLocation();
           }
 
           this.enableMap();

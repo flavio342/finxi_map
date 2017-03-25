@@ -24511,10 +24511,30 @@ ion-navbar.toolbar {
   height: 100% !important;
 }
 
-.ios home-page #current-loc-button, .md home-page #current-loc-button {
+.ios home-page #machine-avatar, .md home-page #machine-avatar {
+  float: left;
+}
+
+.ios home-page #right-bottom, .md home-page #right-bottom {
   position: absolute;
+  right: 15px;
   bottom: 70px;
-  right: 10px;
+}
+
+.ios home-page #left-bottom, .md home-page #left-bottom {
+  position: absolute;
+  left: 15px;
+  bottom: 70px;
+}
+
+.ios home-page .button-yellow, .md home-page .button-yellow {
+  margin-top: 15px;
+  background-color: #FDD835;
+  color: #424242;
+}
+
+.ios home-page .route-button-hidden, .md home-page .route-button-hidden {
+  display: none;
 }
 
 .ios home-page #pin-icon, .md home-page #pin-icon {
@@ -24534,6 +24554,10 @@ ion-navbar.toolbar {
   margin: 0 auto;
   top: 0;
   width: 100vw;
+}
+
+.ios home-page .activeButton, .md home-page .activeButton {
+  color: #2B8DFF !important;
 }
 
 .ios home-page .toolbar-background, .md home-page .toolbar-background {

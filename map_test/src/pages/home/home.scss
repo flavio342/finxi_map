@@ -15,10 +15,30 @@
         height: 100% !important;
       }
 
-      #current-loc-button{
+      #machine-avatar{
+        float: left;
+      }
+
+      #right-bottom{
         position: absolute;
+        right:15px;
         bottom: 70px;
-        right: 10px;
+      }
+
+      #left-bottom{
+        position: absolute;
+        left:15px;
+        bottom: 70px;
+      }
+
+      .button-yellow{
+        margin-top: 15px ;
+        background-color: #FDD835;
+        color: #424242;
+      }
+
+      .route-button-hidden{
+        display: none;
       }
 
       #pin-icon{
@@ -38,6 +58,10 @@
         margin:0 auto;
         top:0;
         width: $loc-width;
+      }
+
+      .activeButton{
+        color: #2B8DFF !important;
       }
 
       .toolbar-background{

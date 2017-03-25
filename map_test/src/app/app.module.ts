@@ -5,9 +5,11 @@ import { MyApp } from './app.component';
 
 import { HomePage } from '../pages/home/home';
 
-import {ConnectivityService} from '../providers/connectivity-service'
-
+import {ConnectivityService} from '../providers/connectivity-service';
 import { IonicStorageModule } from '@ionic/storage';
+
+import{GoogleMapsService} from '../pages/services/googlemaps.service'
+import{DataBaseService} from '../pages/services/database.service'
 
 @NgModule({
   declarations: [
@@ -24,6 +26,6 @@ import { IonicStorageModule } from '@ionic/storage';
     MyApp,
     HomePage
   ],
-  providers: [{provide: ErrorHandler, useClass: IonicErrorHandler},ConnectivityService]
+  providers: [{provide: ErrorHandler, useClass: IonicErrorHandler},ConnectivityService,GoogleMapsService,DataBaseService]
 })
 export class AppModule {}

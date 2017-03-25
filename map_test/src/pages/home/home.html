@@ -1,46 +1,57 @@
-<ion-menu [content]="sideMenu">
+<ion-menu [content]="sideMenuLeft" id="leftMenu">
   <ion-content>
     <ion-list>
-      <ion-item *ngFor="let machine of batteryMachines" (click)="goToMachine(machine)">
-        <ion-avatar item-left>
-          <img *ngIf="machine.nBatteries > (maxNBatteries/3)*2" src="./assets/images/lightning.png">
-          <img *ngIf="machine.nBatteries > (maxNBatteries/3) && machine.nBatteries <= (maxNBatteries/3)*2" src="./assets/images/lightning2.png">
-          <img *ngIf="machine.nBatteries <= (maxNBatteries/3)" src="./assets/images/lightning3.png">
-        </ion-avatar>
-        <h2>BatteryMachinhe {{machine.id}}</h2>
-        <p>{{machine.address}}</p>
-        <p>{{machine.nBatteries}} batteries</p>
-        <button (click)="deleteMachine(machine)" ion-button color="danger">Delete</button>
+      <ion-item *ngFor="let machine of batteryMachines">
+        <div (click)="routeToMachine(machine)">
+          <ion-avatar id="machine-avatar">
+            <img *ngIf="machine.nBatteries > (googlemapsService.maxNBatteries/3)*2" src="./assets/images/lightning.png">
+            <img *ngIf="machine.nBatteries > (googlemapsService.maxNBatteries/3) && machine.nBatteries <= (googlemapsService.maxNBatteries/3)*2" src="./assets/images/lightning2.png">
+            <img *ngIf="machine.nBatteries <= (googlemapsService.maxNBatteries/3)" src="./assets/images/lightning3.png">
+          </ion-avatar>
+          <div start>
+            <h2>BatteryMachinhe {{machine.id}}</h2>
+            <p>{{machine.address}}</p>
+            <p>{{machine.nBatteries}} batteries</p>
+          </div>
+        </div>
+        <button (click)="deleteMachine(machine)" ion-button color="danger" end>Delete</button>
       </ion-item>
     </ion-list>
   </ion-content>
 </ion-menu>
 
-<ion-nav #sideMenu [root]="home-page"></ion-nav>
+<ion-menu side="right" [content]="sideMenuRight" id="rightMenu" [swipeEnabled]="false">
+  <ion-content>
+    <div id="right-panel"></div>
+  </ion-content>
+</ion-menu>
+
+<ion-nav #sideMenuLeft [root]="home-page"></ion-nav>
+<ion-nav #sideMenuRight [root]="home-page"></ion-nav>
 
 <ion-header>
   <ion-navbar>
-
-    <button ion-button menuToggle icon-only>
+    <button ion-button menuToggle="leftMenu" icon-only>
       <ion-icon name='menu'></ion-icon>
     </button>
-
     <ion-title>Ubenergy</ion-title>
-
-    <ion-buttons end>
-      <button ion-button color="dark" outline (click)="openAddMarkerModal()"><ion-icon name="flash"> Add Machine</ion-icon></button>
-    </ion-buttons>
-
   </ion-navbar>
 </ion-header>
 
 <ion-content>
   <div #map id="map" (touchend)="setCurrentLocation()"></div>
-  <button id="current-loc-button" ion-button color="light" (click)="goToCurrentLocation()"><ion-icon name="md-locate"></ion-icon></button>
   <img id="pin-icon" src="./assets/images/pin.png" alt="">
-
   <ion-item>
-    <ion-searchbar id="pac-input" placeholder="Enter Location..." [(ngModel)]="currentLocation" [showCancelButton]="shouldShowCancel"></ion-searchbar>
+    <ion-searchbar id="pac-input" placeholder="Enter Location..." [(ngModel)]="googlemapsService.currentAddress" [showCancelButton]="shouldShowCancel"></ion-searchbar>
   </ion-item>
+  <div id="left-bottom">
+      <button class="button-yellow" ion-fab outline (click)="routeToNearestMachine()"><ion-icon name="ios-time"></ion-icon></button>
+      <button class="button-yellow" ion-fab outline (click)="openAddMarkerModal()"><ion-icon name="flash"></ion-icon></button>
+  </div>
+  <div id="right-bottom">
+      <button [(class.route-button-hidden)]="!googlemapsService.isShowingRoute" color="light" ion-fab menuToggle="rightMenu"><ion-icon name='md-compass'></ion-icon></button>
+      <button class="button-yellow" ion-fab (click)="ToogleRoute()" [(class.activeButton)]="googlemapsService.isShowingRoute"><ion-icon name="md-navigate"></ion-icon></button>
+      <button class="button-yellow" ion-fab color="light" (click)="goToCurrentLocation()"><ion-icon name="md-locate"></ion-icon></button>
+  </div>
 
 </ion-content>
